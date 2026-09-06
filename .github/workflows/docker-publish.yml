@@ -112,7 +112,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GITOPS_TOKEN: ${{ secrets.GITOPS_TOKEN }}
-          IMAGE: ghcr.io/${{ github.repository }}
+          IMAGE: ghcr.io/sdongmaker/xboard
           DIGEST: ${{ steps.digest.outputs.digest }}
           TAG: ${{ github.ref_name }}
         run: |
