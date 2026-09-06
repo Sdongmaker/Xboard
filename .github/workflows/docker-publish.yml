@@ -3,6 +3,7 @@ name: Docker Build and Publish
 on:
   push:
     branches: ["master", "new-dev"]
+    tags: ["v*"]
   workflow_dispatch:
 
 env:
@@ -21,7 +22,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1 
+          fetch-depth: 1
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -58,6 +59,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=ref,event=branch
+            type=ref,event=tag
             type=sha,format=short,prefix=,enable=true
             type=raw,value=new,enable=${{ github.ref == 'refs/heads/master' }}
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/master' }}
@@ -98,3 +100,54 @@ jobs:
           allow: |
             network.host
 
+      # ── GitOps write-back: update image digest in EmbyMirage/EmbyMirage ──
+      - name: Get image digest
+        id: digest
+        run: |
+          DIGEST="${{ steps.build-and-push.outputs.digest }}"
+          echo "digest=$DIGEST" >> $GITHUB_OUTPUT
+          echo "Built image digest: $DIGEST"
+
+      - name: Write-back to GitOps repo
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GITOPS_TOKEN: ${{ secrets.GITOPS_TOKEN }}
+          IMAGE: ghcr.io/${{ github.repository }}
+          DIGEST: ${{ steps.digest.outputs.digest }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          REPO="https://x-access-token:${GITOPS_TOKEN}@github.com/EmbyMirage/EmbyMirage.git"
+          CLONE_DIR="gitops"
+
+          git clone --depth 1 --branch dev "$REPO" "$CLONE_DIR"
+          cd "$CLONE_DIR"
+
+          IMAGE_REF="${IMAGE}@${DIGEST}"
+          FILE="K8S/manifests/apps/xboard/deployments.yaml"
+          CRONFILE="K8S/manifests/apps/xboard/cronjobs.yaml"
+
+          echo "Updating image references to: $IMAGE_REF"
+          sed -i "s|ghcr.io/sdongmaker/xboard@sha256:[a-f0-9]*|${IMAGE_REF}|g" "$FILE" "$CRONFILE"
+
+          # Verify replacement happened
+          COUNT=$(grep -c "$IMAGE_REF" "$FILE" || true)
+          echo "Replaced $COUNT image references in deployments.yaml"
+          CRON_COUNT=$(grep -c "$IMAGE_REF" "$CRONFILE" || true)
+          echo "Replaced $CRON_COUNT image references in cronjobs.yaml"
+
+          if [ "$COUNT" -eq 0 ]; then
+            echo "ERROR: No image references replaced!"
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "$FILE" "$CRONFILE"
+          git commit -m "chore(xboard): auto-update image to ${TAG} (${DIGEST:0:19})
+
+          Triggered by tag ${TAG} in Sdongmaker/Xboard CI.
+          Built commit: ${{ github.sha }}"
+
+          git push origin dev
+          echo "GitOps write-back complete"
