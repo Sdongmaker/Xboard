@@ -20,13 +20,16 @@ COPY .docker /
 ARG CACHEBUST=1
 ARG REPO_URL=https://github.com/cedar2025/Xboard
 ARG BRANCH_NAME=master
+ARG BUILD_VERSION=dev
 
-RUN echo "Attempting to clone branch: ${BRANCH_NAME} from ${REPO_URL} with CACHEBUST: ${CACHEBUST}" && \
+RUN echo "Attempting to clone branch: ${BRANCH_NAME} from ${REPO_URL} with CACHEBUST: ${CACHEBUST} BUILD_VERSION: ${BUILD_VERSION}" && \
     rm -rf ./* && \
     rm -rf .git && \
-    git config --global --add safe.directory /www && \
+    git config --system --add safe.directory /www && \
     git clone --depth 1 --branch ${BRANCH_NAME} ${REPO_URL} . && \
-    git submodule update --init --recursive --force
+    git submodule update --init --recursive --force && \
+    sed -i "s/'version' => '.*'/'version' => '${BUILD_VERSION}'/g" config/app.php && \
+    grep -q "'version' => '${BUILD_VERSION}'" config/app.php
 
 COPY .docker/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY .docker/caddy/Caddyfile /etc/caddy/Caddyfile

@@ -72,11 +72,9 @@ jobs:
         id: get_version
         run: echo "version=$(git describe --tags --always)" >> $GITHUB_OUTPUT
 
-      - name: Update version in app.php
-        run: |
-          VERSION=$(date '+%Y%m%d')-$(git rev-parse --short HEAD)
-          sed -i "s/'version' => '.*'/'version' => '$VERSION'/g" config/app.php
-          echo "Updated version to: $VERSION"
+      - name: Compute build version
+        id: build_version
+        run: echo "value=$(date -u '+%Y%m%d')-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Build and push
         id: build-and-push
@@ -95,6 +93,7 @@ jobs:
             CACHEBUST=${{ github.sha }}
             REPO_URL=https://github.com/${{ github.repository }}
             BRANCH_NAME=${{ github.ref_name }}
+            BUILD_VERSION=${{ steps.build_version.outputs.value }}
           provenance: false
           outputs: type=registry,push=true
           allow: |
