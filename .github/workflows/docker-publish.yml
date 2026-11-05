@@ -117,15 +117,15 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          REPO="https://x-access-token:${GITOPS_TOKEN}@github.com/EmbyMirage/EmbyMirage.git"
+          REPO="https://x-access-token:${GITOPS_TOKEN}@github.com/Sdongmaker/K8S.git"
           CLONE_DIR="gitops"
 
           git clone --depth 1 --branch dev "$REPO" "$CLONE_DIR"
           cd "$CLONE_DIR"
 
           IMAGE_REF="${IMAGE}@${DIGEST}"
-          FILE="K8S/manifests/apps/xboard/deployments.yaml"
-          CRONFILE="K8S/manifests/apps/xboard/cronjobs.yaml"
+          FILE="manifests/apps/xboard/deployments.yaml"
+          CRONFILE="manifests/apps/xboard/cronjobs.yaml"
 
           echo "Updating image references to: $IMAGE_REF"
           sed -i "s|ghcr.io/sdongmaker/xboard@sha256:[a-f0-9]*|${IMAGE_REF}|g" "$FILE" "$CRONFILE"
